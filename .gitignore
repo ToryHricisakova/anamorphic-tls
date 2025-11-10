@@ -9,4 +9,4 @@ coverage.xml
 pylint_report.txt
 build/
 docs/_build/
-htmlcov/
+htmlcov/demo/*.pem

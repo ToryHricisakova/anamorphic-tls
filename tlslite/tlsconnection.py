@@ -96,6 +96,8 @@ class TLSConnection(TLSRecordLayer):
         self.extendedMasterSecret = False
         self._clientRandom = bytearray(0)
         self._serverRandom = bytearray(0)
+        self._clientRandom13 = None ## NEW BY VIKTORIA
+        self._serverRandom13 = None ## NEW BY VIKTORIA
         self.next_proto = None
         # whether the CCS was already sent in the connection (for hello retry)
         self._ccs_sent = False
@@ -531,6 +533,8 @@ class TLSConnection(TLSRecordLayer):
             else: break
         clientHello = result
 
+        self._clientRandom13 = bytes(clientHello.random) # VIKTORIA
+
         # Get the ServerHello.
         for result in self._clientGetServerHello(settings, session,
                                                  clientHello):
@@ -668,6 +672,8 @@ class TLSConnection(TLSRecordLayer):
                 if result in (0, 1): yield result
                 else: break
         masterSecret = result
+
+        self._premasterSecret_demo = bytes(premasterSecret) #VIKTORIA
 
         # check if an application layer protocol was negotiated
         alpnProto = None
@@ -981,6 +987,10 @@ class TLSConnection(TLSRecordLayer):
         for result in self._getMsg(ContentType.handshake,
                                    HandshakeType.server_hello):
             if result in (0,1): yield result
+            if hasattr(result, "random"):
+                if result.random != TLS_1_3_HRR: # NEW BY VIKTORIA
+                    if getattr(self, "version", (0,0)) <= (3, 4): # NEW BY VIKTORIA
+                        self._serverRandom13 = bytes(result.random) #NEW BY VIKTOIRA
             else: break
 
         hello_retry = None
@@ -1321,6 +1331,14 @@ class TLSConnection(TLSRecordLayer):
         # Handshake Secret
         secret = derive_secret(secret, bytearray(b'derived'),
                                None, prfName)
+        
+        #VIKTORIA - stashing the shared DH secret
+        try:
+            self._sharedSec13 = bytes(shared_sec)
+        except Exception:
+            self._sharedSec13 = bytearray(shared_sec)
+
+
         secret = secureHMAC(secret, shared_sec, prfName)
 
         sr_handshake_traffic_secret = derive_secret(secret,
@@ -2521,6 +2539,8 @@ class TLSConnection(TLSRecordLayer):
         serverHello.create(self.version, random, sessionID,
                            cipherSuite, CertificateType.x509, tackExt,
                            nextProtos, extensions=extensions)
+        
+        self._serverRandom13 = bytes(serverHello.random) # VIKTORIA
 
         # Perform the SRP key exchange
         clientCertChain = None
@@ -2585,6 +2605,8 @@ class TLSConnection(TLSRecordLayer):
                 if result in (0,1): yield result
                 else: break
             (premasterSecret, clientCertChain) = result
+
+            self._premasterSecret_demo = bytes(premasterSecret) #VIKTORIA PREMASTER
 
         # Perform anonymous Diffie Hellman key exchange
         elif (cipherSuite in CipherSuite.anonSuites or
@@ -3024,6 +3046,8 @@ class TLSConnection(TLSRecordLayer):
         serverHello.create((3, 3), getRandomBytes(32),
                            clientHello.session_id,
                            cipherSuite, extensions=sh_extensions)
+        
+        self._serverRandom13 = bytes(serverHello.random) # VIKTORIA
 
         msgs = []
         msgs.append(serverHello)
@@ -3038,6 +3062,13 @@ class TLSConnection(TLSRecordLayer):
 
         # Handshake Secret
         secret = derive_secret(secret, bytearray(b'derived'), None, prf_name)
+
+        #VIKTORIA - stashing the shared DH secret
+        try:
+            self._sharedSec13 = bytes(shared_sec)
+        except Exception:
+            self._sharedSec13 = bytearray(shared_sec)
+
         secret = secureHMAC(secret, shared_sec, prf_name)
 
         sr_handshake_traffic_secret = derive_secret(secret,
@@ -3445,6 +3476,8 @@ class TLSConnection(TLSRecordLayer):
             if result in (0,1): yield result
             else: break
         clientHello = result
+
+        self._clientRandom13 = bytes(clientHello.random) # VIKTORIA
 
         # check if the ClientHello and its extensions are well-formed
 
@@ -4047,6 +4080,8 @@ class TLSConnection(TLSRecordLayer):
                 for result in self._sendMsg(serverHello):
                     yield result
 
+                self._serverRandom13 = bytes(serverHello.random) # VIKTORIA
+
                 #Calculate pending connection states
                 self._calcPendingStates(session.cipherSuite,
                                         session.masterSecret,
@@ -4197,6 +4232,8 @@ class TLSConnection(TLSRecordLayer):
                     else:
                         break
                 clientHello = result
+
+                self._clientRandom13 = bytes(clientHello.random) # VIKTORIA
 
                 # verify that the new key share is present
                 ext = clientHello.getExtension(ExtensionType.key_share)

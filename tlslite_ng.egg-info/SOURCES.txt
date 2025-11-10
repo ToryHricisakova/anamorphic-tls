@@ -67,6 +67,7 @@ tests/serverX509Key.pem
 tests/tlstest.py
 tests/verifierDB
 tlslite/__init__.py
+tlslite/anamorphic.py
 tlslite/api.py
 tlslite/basedb.py
 tlslite/bufferedsocket.py

@@ -217,7 +217,7 @@ class SignatureScheme(TLSEnum):
 
     This is the replacement for the HashAlgorithm and SignatureAlgorithm
     lists. Introduced with TLSv1.3.
-    """
+    """ #VIKTORIA ECDSA
 
     rsa_pkcs1_sha1 = (2, 1)
     rsa_pkcs1_sha224 = (3, 1)

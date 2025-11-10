@@ -43,7 +43,8 @@ from .handshakehelpers import HandshakeHelpers
 from .utils.cipherfactory import createAESCCM, createAESCCM_8, \
         createAESGCM, createCHACHA20
 from .utils.compression import choose_compression_send_algo
-
+#VIKTORIA
+from .anamorphic import client_make_A, client_derive_dk, server_make_B, server_derive_dk
 
 class TLSConnection(TLSRecordLayer):
     """
@@ -96,6 +97,8 @@ class TLSConnection(TLSRecordLayer):
         self.extendedMasterSecret = False
         self._clientRandom = bytearray(0)
         self._serverRandom = bytearray(0)
+        self._clientRandom13 = None ## NEW BY VIKTORIA
+        self._serverRandom13 = None ## NEW BY VIKTORIA
         self.next_proto = None
         # whether the CCS was already sent in the connection (for hello retry)
         self._ccs_sent = False
@@ -530,6 +533,7 @@ class TLSConnection(TLSRecordLayer):
             if result in (0, 1): yield result
             else: break
         clientHello = result
+        self._clientRandom13 = bytes(clientHello.random) # VIKTORIA
 
         # Get the ServerHello.
         for result in self._clientGetServerHello(settings, session,
@@ -538,6 +542,13 @@ class TLSConnection(TLSRecordLayer):
             else: break
         serverHello = result
         cipherSuite = serverHello.cipher_suite
+
+        # --- VIKTORIA derive dk on client (dk = a·B) ---
+        if settings.anamorphic and getattr(self, "_ana", None):
+            B = bytes(result.random)            # the B the server sent
+            client_derive_dk(self._ana, B)      # self._ana.dk now set
+        # ---------------------------------------------------
+
 
         # Check the serverHello.random  if it includes the downgrade protection
         # values as described in RFC8446 section 4.1.3
@@ -668,6 +679,8 @@ class TLSConnection(TLSRecordLayer):
                 if result in (0, 1): yield result
                 else: break
         masterSecret = result
+
+        self._premasterSecret_demo = bytes(premasterSecret) #VIKTORIA
 
         # check if an application layer protocol was negotiated
         alpnProto = None
@@ -911,6 +924,15 @@ class TLSConnection(TLSRecordLayer):
                                reqTack, nextProtos is not None,
                                serverName,
                                extensions=extensions)
+        
+        #VIKTORIA
+        if settings.anamorphic:
+            if not getattr(self, "_ana", None) or getattr(self._ana, "A", None) is None:
+                self._ana = client_make_A()
+
+            clientHello.random = bytearray(self._ana.A)  # ALWAYS assign A
+            self._clientRandom13 = bytes(clientHello.random)
+
 
         # Check if padding extension should be added
         # we want to add extensions even when using just SSLv3
@@ -981,6 +1003,10 @@ class TLSConnection(TLSRecordLayer):
         for result in self._getMsg(ContentType.handshake,
                                    HandshakeType.server_hello):
             if result in (0,1): yield result
+            if hasattr(result, "random"):
+                if result.random != TLS_1_3_HRR: # NEW BY VIKTORIA
+                    if getattr(self, "version", (0,0)) <= (3, 4): # NEW BY VIKTORIA
+                        self._serverRandom13 = bytes(result.random) #NEW BY VIKTOIRA
             else: break
 
         hello_retry = None
@@ -1321,6 +1347,13 @@ class TLSConnection(TLSRecordLayer):
         # Handshake Secret
         secret = derive_secret(secret, bytearray(b'derived'),
                                None, prfName)
+        
+        #VIKTORIA - stashing the shared DH secret
+        try:
+            self._sharedSec13 = bytes(shared_sec)
+        except Exception:
+            self._sharedSec13 = bytearray(shared_sec)
+
         secret = secureHMAC(secret, shared_sec, prfName)
 
         sr_handshake_traffic_secret = derive_secret(secret,
@@ -2511,16 +2544,42 @@ class TLSConnection(TLSRecordLayer):
         if not extensions:
             extensions = None
 
-        serverHello = ServerHello()
+        
         # RFC 8446, section 4.1.3
+        # Build random with downgrade sentinels per original code --- viktoria
         random = getRandomBytes(32)
         if version == (3, 3) and settings.maxVersion > (3, 3):
             random[-8:] = TLS_1_2_DOWNGRADE_SENTINEL
         if version < (3, 3) and settings.maxVersion >= (3, 3):
             random[-8:] = TLS_1_1_DOWNGRADE_SENTINEL
+
+        # --- Anamorphic TLS 1.2: put B on the wire ---
+        if settings.anamorphic and version == (3, 3):
+            st = getattr(self, "_ana", None)
+            if st is None or getattr(st, "B", None) is None:
+                self._ana = server_make_B()              # holds (b, B)
+            random = bytearray(self._ana.B)              # on-wire B
+        
+        
+        serverHello = ServerHello()
         serverHello.create(self.version, random, sessionID,
                            cipherSuite, CertificateType.x509, tackExt,
                            nextProtos, extensions=extensions)
+        
+        
+        self._serverRandom13 = bytes(serverHello.random) # VIKTORIA
+
+        # --- Anamorphic TLS 1.2: derive dk = b·A --- VIKTORIA
+        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
+
+        if settings.anamorphic and getattr(self, "_ana", None):
+            try:
+                A = bytes(clientHello.random)            # A from ClientHello.random
+                _ = X25519PublicKey.from_public_bytes(A) # validate
+                server_derive_dk(self._ana, A)           # sets self._ana.dk
+            except Exception:
+                pass
+        # --------------------------------------------
 
         # Perform the SRP key exchange
         clientCertChain = None
@@ -2546,6 +2605,7 @@ class TLSConnection(TLSRecordLayer):
                                                    clientHello,
                                                    cert_chain,
                                                    privateKey)
+                self.serverSigAlg = sig_hash_alg
             except TLSHandshakeFailure as alert:
                 for result in self._sendError(
                         AlertDescription.handshake_failure,
@@ -2585,6 +2645,8 @@ class TLSConnection(TLSRecordLayer):
                 if result in (0,1): yield result
                 else: break
             (premasterSecret, clientCertChain) = result
+            
+            self._premasterSecret_demo = bytes(premasterSecret) #VIKTORIA PREMASTER
 
         # Perform anonymous Diffie Hellman key exchange
         elif (cipherSuite in CipherSuite.anonSuites or
@@ -3017,13 +3079,37 @@ class TLSConnection(TLSRecordLayer):
         if selected_psk is not None:
             sh_extensions.append(SrvPreSharedKeyExtension()
                                  .create(selected_psk))
+    
 
         serverHello = ServerHello()
+
+        # --- Viktoria set B exactly once and use it as ServerHello.random ---        
+        if settings.anamorphic:
+            st = getattr(self, "_ana", None)
+            if st is None or getattr(st, "B", None) is None:
+                self._ana = server_make_B()              # holds (b, B)
+            random = bytearray(self._ana.B)              # on-wire B
+        # ----------------------------------------------------------------------
+
         # in TLS1.3 the version selected is sent in extension, (3, 3) is
         # just dummy value to workaround broken middleboxes
-        serverHello.create((3, 3), getRandomBytes(32),
+        serverHello.create((3, 3), random,  # VIKTORIA FAKE RANDOM
                            clientHello.session_id,
                            cipherSuite, extensions=sh_extensions)
+        
+        #VIKTORIA # --- derive dk on server (dk = b·A) --- 
+        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
+
+        if settings.anamorphic and getattr(self, "_ana", None):
+            try:
+                A = bytes(clientHello.random)            # A from ClientHello.random
+                _ = X25519PublicKey.from_public_bytes(A) # validate
+                server_derive_dk(self._ana, A)           # sets self._ana.dk
+            except Exception:
+                pass
+        # ---------------------------------------------------
+        
+        self._serverRandom13 = bytes(serverHello.random) # VIKTORIA
 
         msgs = []
         msgs.append(serverHello)
@@ -3038,6 +3124,13 @@ class TLSConnection(TLSRecordLayer):
 
         # Handshake Secret
         secret = derive_secret(secret, bytearray(b'derived'), None, prf_name)
+
+        #VIKTORIA - stashing the shared DH secret
+        try:
+            self._sharedSec13 = bytes(shared_sec)
+        except Exception:
+            self._sharedSec13 = bytearray(shared_sec)
+
         secret = secureHMAC(secret, shared_sec, prf_name)
 
         sr_handshake_traffic_secret = derive_secret(secret,
@@ -3445,6 +3538,8 @@ class TLSConnection(TLSRecordLayer):
             if result in (0,1): yield result
             else: break
         clientHello = result
+        self._clientRandom13 = bytes(clientHello.random) # VIKTORIA
+
 
         # check if the ClientHello and its extensions are well-formed
 
@@ -4036,6 +4131,7 @@ class TLSConnection(TLSRecordLayer):
                     extensions.append(RecordSizeLimitExtension().create(
                         min(2**14, settings.record_size_limit)))
 
+                
                 # don't send empty extensions
                 if not extensions:
                     extensions = None
@@ -4044,8 +4140,11 @@ class TLSConnection(TLSRecordLayer):
                                    session.sessionID, session.cipherSuite,
                                    CertificateType.x509, None, None,
                                    extensions=extensions)
+ 
+                self._serverRandom13 = bytes(serverHello.random) # VIKTORIA
                 for result in self._sendMsg(serverHello):
                     yield result
+
 
                 #Calculate pending connection states
                 self._calcPendingStates(session.cipherSuite,
@@ -4197,6 +4296,7 @@ class TLSConnection(TLSRecordLayer):
                     else:
                         break
                 clientHello = result
+                self._clientRandom13 = bytes(clientHello.random) # VIKTORIA
 
                 # verify that the new key share is present
                 ext = clientHello.getExtension(ExtensionType.key_share)

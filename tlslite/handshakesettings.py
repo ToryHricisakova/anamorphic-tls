@@ -490,6 +490,11 @@ class HandshakeSettings(object):
         self.keyExchangeNames = list(KEY_EXCHANGE_NAMES)
         self.cipherImplementations = list(CIPHER_IMPLEMENTATIONS)
 
+        # VIKTORIA - declaring helper atributes
+        self.anamorphic = True
+        self.ana_dm = None
+        self.ana_mspace = 256
+
     @staticmethod
     def _sanityCheckKeySizes(other):
         """Check if key size limits are sane"""

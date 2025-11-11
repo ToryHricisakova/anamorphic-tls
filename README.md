@@ -1,3 +1,36 @@
+# TLSLite-NG Baseline Demo
+
+This repository contains a baseline version of the [tlslite-ng](https://github.com/tomato42/tlslite-ng) Python TLS implementation.
+It demonstrates a standard TLS 1.2 / 1.3 handshake using `demo/server.py` and `demo/client.py`.
+
+---
+
+## Requirements
+
+- Python 3.13 (or >= 3.10)
+- `pip` and `venv`
+- No external network dependencies
+
+---
+
+## Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/ToryHricisakova/baseline-tls.git
+cd baseline-tls
+
+# Create and activate a virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On macOS/Linux
+# .\venv\Scripts\activate  # On Windows PowerShell
+
+# Install dependencies
+pip install -e .
+
+
+# BELOW YOU CAN SEE THE ORIGINAL READ ME FILE:
+
 tlslite-ng version 0.9.0b2 (2025-09-26)
 
 [![GitHub CI](https://github.com/tlsfuzzer/tlslite-ng/actions/workflows/ci.yml/badge.svg)](https://github.com/tlsfuzzer/tlslite-ng/actions/workflows/ci.yml)

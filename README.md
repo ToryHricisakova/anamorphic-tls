@@ -27,7 +27,7 @@ source venv/bin/activate  # On macOS/Linux
 
 # Install dependencies
 pip install -e .
-```bash
+```
 
 
 tlslite-ng version 0.9.0b2 (2025-09-26)

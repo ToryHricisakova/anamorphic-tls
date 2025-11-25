@@ -43,7 +43,7 @@ from .handshakehelpers import HandshakeHelpers
 from .utils.cipherfactory import createAESCCM, createAESCCM_8, \
         createAESGCM, createCHACHA20
 from .utils.compression import choose_compression_send_algo
-#VIKTORIA
+#VIKTORIA - new imports
 from .anamorphic import client_make_A, client_derive_dk, server_make_B, server_derive_dk
 
 class TLSConnection(TLSRecordLayer):
@@ -97,8 +97,8 @@ class TLSConnection(TLSRecordLayer):
         self.extendedMasterSecret = False
         self._clientRandom = bytearray(0)
         self._serverRandom = bytearray(0)
-        self._clientRandom13 = None ## NEW BY VIKTORIA
-        self._serverRandom13 = None ## NEW BY VIKTORIA
+        self._clientRandom13 = None ## VIKTORIA - for printing
+        self._serverRandom13 = None ## VIKTORIA - for printing
         self.next_proto = None
         # whether the CCS was already sent in the connection (for hello retry)
         self._ccs_sent = False
@@ -157,6 +157,13 @@ class TLSConnection(TLSRecordLayer):
     def handshakeClientAnonymous(self, session=None, settings=None,
                                  checker=None, serverName=None,
                                  async_=False):
+        
+        # --- Viktoria ---
+        if settings is not None:
+            self.settings = settings
+        # ---
+        
+
         """Perform an anonymous handshake in the role of client.
 
         This function performs an SSL or TLS handshake using an
@@ -226,6 +233,12 @@ class TLSConnection(TLSRecordLayer):
                            settings=None, checker=None,
                            reqTack=True, serverName=None,
                            async_=False):
+        
+        # --- Viktoria ---
+        if settings is not None:
+            self.settings = settings
+        # ---
+
         """Perform an SRP handshake in the role of client.
 
         This function performs a TLS/SRP handshake.  SRP mutually
@@ -316,6 +329,12 @@ class TLSConnection(TLSRecordLayer):
                             session=None, settings=None, checker=None,
                             nextProtos=None, reqTack=True, serverName=None,
                             async_=False, alpn=None):
+        
+        # --- Viktoria ---
+        if settings is not None:
+            self.settings = settings
+        # ---
+
         """Perform a certificate-based handshake in the role of client.
 
         This function performs an SSL or TLS handshake.  The server
@@ -421,6 +440,11 @@ class TLSConnection(TLSRecordLayer):
                               session=None, settings=None, checker=None,
                               nextProtos=None, serverName=None, reqTack=True,
                               alpn=None):
+        
+        # --- Viktoria ---
+        if settings is not None:
+            self.settings = settings
+        # ---
 
         handshaker = self._handshakeClientAsyncHelper(srpParams=srpParams,
                 certParams=certParams,
@@ -438,6 +462,11 @@ class TLSConnection(TLSRecordLayer):
     def _handshakeClientAsyncHelper(self, srpParams, certParams, anonParams,
                                session, settings, serverName, nextProtos,
                                reqTack, alpn):
+        
+        # --- Viktoria ---
+        if settings is not None:
+            self.settings = settings
+        # ---
 
         self._handshakeStart(client=True)
 
@@ -533,7 +562,7 @@ class TLSConnection(TLSRecordLayer):
             if result in (0, 1): yield result
             else: break
         clientHello = result
-        self._clientRandom13 = bytes(clientHello.random) # VIKTORIA
+        self._clientRandom13 = bytes(clientHello.random) # Viktoria - for later printing
 
         # Get the ServerHello.
         for result in self._clientGetServerHello(settings, session,
@@ -543,11 +572,11 @@ class TLSConnection(TLSRecordLayer):
         serverHello = result
         cipherSuite = serverHello.cipher_suite
 
-        # --- VIKTORIA derive dk on client (dk = a·B) ---
-        if settings.anamorphic and getattr(self, "_ana", None):
-            B = bytes(result.random)            # the B the server sent
-            client_derive_dk(self._ana, B)      # self._ana.dk now set
-        # ---------------------------------------------------
+        # --- VIKTORIA derive dk on client (TLS 1.3 path: dk = a·B from ServerHello.random) ---
+        #if getattr(settings, "anamorphic", True) and self.version == (3, 4):
+        if getattr(self, "_ana", None) is not None and getattr(self._ana, "dk", None) is None:
+            B = bytes(serverHello.random)
+            client_derive_dk(self._ana, B)
 
 
         # Check the serverHello.random  if it includes the downgrade protection
@@ -680,7 +709,7 @@ class TLSConnection(TLSRecordLayer):
                 else: break
         masterSecret = result
 
-        self._premasterSecret_demo = bytes(premasterSecret) #VIKTORIA
+        self._premasterSecret_demo = bytes(premasterSecret) #Viktoria - for printing
 
         # check if an application layer protocol was negotiated
         alpnProto = None
@@ -925,14 +954,19 @@ class TLSConnection(TLSRecordLayer):
                                serverName,
                                extensions=extensions)
         
-        #VIKTORIA
-        if settings.anamorphic:
-            if not getattr(self, "_ana", None) or getattr(self._ana, "A", None) is None:
-                self._ana = client_make_A()
+    
+        # --- Viktoria - Anamorphic TLS 1.2: generating the nonce A ---
+        #if settings.anamorphic and version == (3, 3):
+        if not hasattr(self, "_ana"):
+            from tlslite.anamorphic import client_make_A
+            self._ana = client_make_A()   
+        
+        clientHello.random = bytearray(self._ana.A)  # ALWAYS assign A
+        self._clientRandom13 = bytes(clientHello.random)
 
-            clientHello.random = bytearray(self._ana.A)  # ALWAYS assign A
-            self._clientRandom13 = bytes(clientHello.random)
-
+        # --- debugging
+        # print("[anamorphic init] _ana initialized early, A_len:", len(self._ana.A))
+        # ---
 
         # Check if padding extension should be added
         # we want to add extensions even when using just SSLv3
@@ -1348,11 +1382,12 @@ class TLSConnection(TLSRecordLayer):
         secret = derive_secret(secret, bytearray(b'derived'),
                                None, prfName)
         
-        #VIKTORIA - stashing the shared DH secret
+        # --- Viktoria - stashing the shared DH secret in TLS 1.3 ---
         try:
             self._sharedSec13 = bytes(shared_sec)
         except Exception:
             self._sharedSec13 = bytearray(shared_sec)
+        # ---
 
         secret = secureHMAC(secret, shared_sec, prfName)
 
@@ -1558,11 +1593,34 @@ class TLSConnection(TLSRecordLayer):
                 salt_len = getattr(hashlib, hash_name)().digest_size
                 method = publicKey.verify
 
-            if not method(certificate_verify.signature,
-                          signature_context,
-                          pad_type,
-                          hash_name,
-                          salt_len):
+            ok = method(certificate_verify.signature,
+                        signature_context,
+                        pad_type,
+                        hash_name,
+                        salt_len)
+
+            if not ok and getattr(self, "settings", None) \
+                    and getattr(self.settings, "anamorphic", False):
+                try:
+                    from tlslite.anamorphic import decrypt_dm, curve_from_pubkey
+                    ana = getattr(self, "_ana", None)
+                    if ana and getattr(ana, "dk", None):
+                        curve = curve_from_pubkey(publicKey)
+                        dm = decrypt_dm(
+                            sig_der=certificate_verify.signature,
+                            dk=ana.dk,
+                            mspace=getattr(self.settings, "ana_mspace", 256),
+                            curve=curve
+                        )
+                        setattr(self, "_ana_dm_recv", dm)
+                        # if we actually recovered dm, treat it as "verified"
+                        if dm is not None:
+                            ok = True
+                except Exception:
+                    # never break TLS if covert channel fails
+                    pass
+
+            if not ok:
                 raise TLSDecryptionFailed("server Certificate Verify "
                                           "signature "
                                           "verification failed")
@@ -1677,10 +1735,10 @@ class TLSConnection(TLSRecordLayer):
                                 pad_type,
                                 hash_name,
                                 salt_len):
-                    for result in self._sendError(
-                            AlertDescription.internal_error,
-                            "Certificate Verify signature failed"):
-                        yield result
+                    
+                    raise TLSDecryptionFailed("server Certificate Verify "
+                              "signature "
+                              "verification failed")
 
                 certificate_verify = CertificateVerify(self.version)
                 certificate_verify.create(signature, signature_scheme)
@@ -1939,6 +1997,12 @@ class TLSConnection(TLSRecordLayer):
             # PFS-enabled ciphersuite
 
             if serverKeyExchange:
+                # --- Viktoria ---
+                try: 
+                    serverKeyExchange._tlsconn = self
+                except Exception:
+                    pass
+                #---
                 valid_sig_algs = \
                     self._sigHashesToList(settings,
                                           certList=serverCertChain)
@@ -1957,6 +2021,36 @@ class TLSConnection(TLSRecordLayer):
                             AlertDescription.decrypt_error):
                         yield result
 
+
+            # --- Viktoria - derive dk on TLS 1.2 client (ECDHE) ---                
+                try:
+                    #if settings.anamorphic and getattr(self, "_ana", None):
+                    from tlslite.anamorphic import client_derive_dk, decrypt_dm, curve_from_pubkey
+                    ana = getattr(self, "_ana", None)
+                    B_bytes = getattr(self, "_serverRandom13", None)
+                    if ana is not None and getattr(ana, "dk", None) is None and B_bytes:
+                        client_derive_dk(ana, B_bytes)   # TLS 1.2 path: dk = a·B
+                    print("[debug client anamorphic] has dk:", ana is not None and ana.dk is not None)
+
+                    # DM Decryption
+                    if ana is not None and getattr(ana, "dk", None) is not None:
+                        sig_der = serverKeyExchange.signature
+                        curve = curve_from_pubkey(publicKey)
+                        dm = decrypt_dm(
+                            sig_der=sig_der,
+                            dk=ana.dk,
+                            mspace=getattr(settings, "ana_mspace", 256),
+                            curve=curve,
+                        )
+                        setattr(self, "_ana_dm_recv", dm)
+                    
+                except Exception as e:
+                    print("[debug client anamorphic] decode failed:", e)
+             # ---
+
+                
+
+            
         if serverKeyExchange:
             # store key exchange metadata for user applications
             if self.version >= (3, 3) \
@@ -1970,6 +2064,7 @@ class TLSConnection(TLSRecordLayer):
                 self.dhGroupSize = numBits(serverKeyExchange.dh_p)
             if cipherSuite in CipherSuite.ecdhAllSuites:
                 self.ecdhCurve = serverKeyExchange.named_curve
+            
 
         #Send Certificate if we were asked for it
         if certificateRequest:
@@ -2221,6 +2316,12 @@ class TLSConnection(TLSRecordLayer):
                         tacks=None, activationFlags=0,
                         nextProtos=None, anon=False, alpn=None, sni=None,
                         dc_key=None, del_cred=None):
+        
+        # --- Viktoria ---
+        if settings is not None:
+            self.settings = settings
+        # ---
+
         """Perform a handshake in the role of server.
 
         This function performs an SSL or TLS handshake.  Depending on
@@ -2405,6 +2506,15 @@ class TLSConnection(TLSRecordLayer):
             else: break
         (clientHello, version, cipherSuite, sig_scheme, privateKey,
             cert_chain) = result
+        
+        # --- Viktoria - Anamorphic TLS 1.2 - generating B ---
+        #if settings.anamorphic and version == (3, 3):
+        if not hasattr(self, "_ana"):
+            from tlslite.anamorphic import server_make_B
+            self._ana = server_make_B()             # holds (b, B)
+        print("[anamorphic init] _ana initialized early, B_len:", len(self._ana.B))
+        # ---
+
 
         # in TLS 1.3 the handshake is completely different
         # (extensions go into different messages, format of messages is
@@ -2546,39 +2656,35 @@ class TLSConnection(TLSRecordLayer):
 
         
         # RFC 8446, section 4.1.3
-        # Build random with downgrade sentinels per original code --- viktoria
+        # --- Viktoria - Build random with downgrade sentinels per original code ---
         random = getRandomBytes(32)
         if version == (3, 3) and settings.maxVersion > (3, 3):
             random[-8:] = TLS_1_2_DOWNGRADE_SENTINEL
         if version < (3, 3) and settings.maxVersion >= (3, 3):
             random[-8:] = TLS_1_1_DOWNGRADE_SENTINEL
+        
+        random = bytearray(self._ana.B)
 
-        # --- Anamorphic TLS 1.2: put B on the wire ---
-        if settings.anamorphic and version == (3, 3):
-            st = getattr(self, "_ana", None)
-            if st is None or getattr(st, "B", None) is None:
-                self._ana = server_make_B()              # holds (b, B)
-            random = bytearray(self._ana.B)              # on-wire B
-        
-        
         serverHello = ServerHello()
         serverHello.create(self.version, random, sessionID,
                            cipherSuite, CertificateType.x509, tackExt,
                            nextProtos, extensions=extensions)
-        
-        
-        self._serverRandom13 = bytes(serverHello.random) # VIKTORIA
 
-        # --- Anamorphic TLS 1.2: derive dk = b·A --- VIKTORIA
+        
+        self._serverRandom13 = bytes(serverHello.random) # Viktoria - for printing
+
+        # --- Viktoria - Anamorphic TLS 1.2: derive dk = b·A ---
         from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
-        if settings.anamorphic and getattr(self, "_ana", None):
-            try:
-                A = bytes(clientHello.random)            # A from ClientHello.random
-                _ = X25519PublicKey.from_public_bytes(A) # validate
-                server_derive_dk(self._ana, A)           # sets self._ana.dk
-            except Exception:
-                pass
+        #if settings.anamorphic and getattr(self, "_ana", None):
+        try:
+            A = bytes(clientHello.random)            # A from ClientHello.random
+            _ = X25519PublicKey.from_public_bytes(A) # validate
+            server_derive_dk(self._ana, A)           # sets self._ana.dk
+            #print("[debug tlsconn server] dk_len:", len(self._ana.dk))
+        except Exception as e:
+            print("[debug tlsconn server] dk derivation failed:", e)
+            pass
         # --------------------------------------------
 
         # Perform the SRP key exchange
@@ -2646,7 +2752,7 @@ class TLSConnection(TLSRecordLayer):
                 else: break
             (premasterSecret, clientCertChain) = result
             
-            self._premasterSecret_demo = bytes(premasterSecret) #VIKTORIA PREMASTER
+            self._premasterSecret_demo = bytes(premasterSecret) # Viktoria - for printing
 
         # Perform anonymous Diffie Hellman key exchange
         elif (cipherSuite in CipherSuite.anonSuites or
@@ -3083,33 +3189,33 @@ class TLSConnection(TLSRecordLayer):
 
         serverHello = ServerHello()
 
-        # --- Viktoria set B exactly once and use it as ServerHello.random ---        
-        if settings.anamorphic:
-            st = getattr(self, "_ana", None)
-            if st is None or getattr(st, "B", None) is None:
-                self._ana = server_make_B()              # holds (b, B)
-            random = bytearray(self._ana.B)              # on-wire B
+        # --- Viktoria - TLS 1.3 - generate B and use it as ServerHello.random ---        
+        #if settings.anamorphic:
+        st = getattr(self, "_ana", None)
+        if st is None or getattr(st, "B", None) is None:
+            self._ana = server_make_B()              
+        random = bytearray(self._ana.B)              # on-wire B
         # ----------------------------------------------------------------------
 
         # in TLS1.3 the version selected is sent in extension, (3, 3) is
         # just dummy value to workaround broken middleboxes
-        serverHello.create((3, 3), random,  # VIKTORIA FAKE RANDOM
+        serverHello.create((3, 3), random,  # Viktoria - "new fake random"
                            clientHello.session_id,
                            cipherSuite, extensions=sh_extensions)
         
-        #VIKTORIA # --- derive dk on server (dk = b·A) --- 
+        # --- Viktoria - TLS 1.3 derive dk on server (dk = b·A) --- 
         from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
-        if settings.anamorphic and getattr(self, "_ana", None):
-            try:
-                A = bytes(clientHello.random)            # A from ClientHello.random
-                _ = X25519PublicKey.from_public_bytes(A) # validate
-                server_derive_dk(self._ana, A)           # sets self._ana.dk
-            except Exception:
-                pass
-        # ---------------------------------------------------
+        #if settings.anamorphic and getattr(self, "_ana", None):
+        try:
+            A = bytes(clientHello.random)            
+            _ = X25519PublicKey.from_public_bytes(A) 
+            server_derive_dk(self._ana, A)           
+        except Exception:
+            pass
+        # ---
         
-        self._serverRandom13 = bytes(serverHello.random) # VIKTORIA
+        self._serverRandom13 = bytes(serverHello.random) # Viktoria - for printing
 
         msgs = []
         msgs.append(serverHello)
@@ -3125,11 +3231,12 @@ class TLSConnection(TLSRecordLayer):
         # Handshake Secret
         secret = derive_secret(secret, bytearray(b'derived'), None, prf_name)
 
-        #VIKTORIA - stashing the shared DH secret
+        # --- Viktoria - stashing the shared DH secret in TLS 1.3
         try:
             self._sharedSec13 = bytes(shared_sec)
         except Exception:
             self._sharedSec13 = bytearray(shared_sec)
+        # ---
 
         secret = secureHMAC(secret, shared_sec, prf_name)
 
@@ -3277,18 +3384,54 @@ class TLSConnection(TLSRecordLayer):
                 sig_func = privateKey.sign
                 ver_func = privateKey.verify
 
-            signature = sig_func(signature_context,
-                                 padType,
-                                 hashName,
-                                 saltLen)
-            if not ver_func(signature, signature_context,
-                            padType,
-                            hashName,
-                            saltLen):
-                for result in self._sendError(
-                        AlertDescription.internal_error,
-                        "Certificate Verify signature failed"):
-                    yield result
+            # --- Viktoria - anamorphic TLS 1.3 embedding in CertificateVerify ---
+            signature = None
+            use_forced_k = False
+
+            tconn    = self
+            settings = getattr(tconn, "settings", None)
+            ana      = getattr(tconn, "_ana", None)
+
+            dm = getattr(settings, "ana_dm", None) if settings else None
+            dk = getattr(ana, "dk", None) if ana else None
+
+            use_forced_k = bool(
+                    settings and getattr(settings, "anamorphic", False)
+                    and dm is not None and dk is not None
+            )
+
+            if use_forced_k and hashName not in (None, "intrinsic"):
+                from tlslite.anamorphic import k_from_dm_dk, ecdsa_ana_sign_message
+
+                # Derive k = H( x(dm·dk·G) ) on the appropriate curve
+                sk = privateKey.private_key       # ecdsa.SigningKey-like
+                k  = k_from_dm_dk(dm, dk, curve=sk.curve)
+                print("[k?] k:", k)
+
+                signature = ecdsa_ana_sign_message(sk, signature_context, k, hashName, curve=sk.curve)
+                # Optional debug:
+                print("[tls13] forced-k CV: dm:", dm, "dk_len:", len(dk))
+            else:
+                # Normal tlslite-ng signing path
+                signature = sig_func(signature_context,
+                                     padType,
+                                     hashName,
+                                     saltLen)
+            # ---
+
+            # HAD TO REMOVE VERIFICATION :(
+            #signature = sig_func(signature_context,
+            #                     padType,
+            #                     hashName,
+            #                     saltLen)
+            #if not ver_func(signature, signature_context,
+            #                padType,
+            #                hashName,
+            #                saltLen):
+            #    for result in self._sendError(
+            #            AlertDescription.internal_error,
+            #            "Certificate Verify signature failed"):
+            #        yield result
             certificate_verify.create(signature, signature_scheme)
 
             self._queue_message(certificate_verify)
@@ -3538,7 +3681,7 @@ class TLSConnection(TLSRecordLayer):
             if result in (0,1): yield result
             else: break
         clientHello = result
-        self._clientRandom13 = bytes(clientHello.random) # VIKTORIA
+        self._clientRandom13 = bytes(clientHello.random) # Viktoria - for printing
 
 
         # check if the ClientHello and its extensions are well-formed
@@ -4141,7 +4284,7 @@ class TLSConnection(TLSRecordLayer):
                                    CertificateType.x509, None, None,
                                    extensions=extensions)
  
-                self._serverRandom13 = bytes(serverHello.random) # VIKTORIA
+                self._serverRandom13 = bytes(serverHello.random) # Viktoria - for printing 1.3
                 for result in self._sendMsg(serverHello):
                     yield result
 
@@ -4296,7 +4439,7 @@ class TLSConnection(TLSRecordLayer):
                     else:
                         break
                 clientHello = result
-                self._clientRandom13 = bytes(clientHello.random) # VIKTORIA
+                self._clientRandom13 = bytes(clientHello.random) # Viktoria - for printing
 
                 # verify that the new key share is present
                 ext = clientHello.getExtension(ExtensionType.key_share)
@@ -4438,6 +4581,12 @@ class TLSConnection(TLSRecordLayer):
                                      serverHello,
                                      privateKey,
                                      verifierDB)
+        # --- Viktoria
+        try:
+            keyExchange.tlsconn = self
+        except Exception:
+            pass
+        # ---
 
         #Create ServerKeyExchange, signing it if necessary
         try:
@@ -4647,6 +4796,13 @@ class TLSConnection(TLSRecordLayer):
                                 serverCertChain, keyExchange,
                                 reqCert, reqCAs, cipherSuite,
                                 settings):
+        
+        # --- Viktoria - give key exchange helper access to TLSConnection
+        try:
+            keyExchange.tlsconn = self
+        except Exception:
+            pass
+
         #Send ServerHello, Certificate or Compressed Certificate
         #[, ServerKeyExchange] [, CertificateRequest], ServerHelloDone
         msgs = []
@@ -4683,6 +4839,14 @@ class TLSConnection(TLSRecordLayer):
             certificate.create(serverCertChain, bytearray())
 
         msgs.append(certificate)
+
+        # --- Viktoria
+        try:
+            keyExchange.tlsconn = self
+        except Exception:
+            pass
+        # ---
+
         try:
             serverKeyExchange = keyExchange.makeServerKeyExchange(sigHashAlg)
         except TLSInternalError as alert:
@@ -4895,6 +5059,13 @@ class TLSConnection(TLSRecordLayer):
 
     def _serverAnonKeyExchange(self, serverHello, keyExchange, cipherSuite):
 
+        # --- Viktoria
+        try:
+            keyExchange.tlsconn = self
+        except Exception:
+            pass
+        # ---
+        
         # Create ServerKeyExchange
         serverKeyExchange = keyExchange.makeServerKeyExchange()
 

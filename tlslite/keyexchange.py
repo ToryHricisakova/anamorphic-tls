@@ -75,6 +75,7 @@ class KeyExchange(object):
                                  serverKeyExchange):
         """Process the server KEX and return premaster secret"""
         raise NotImplementedError()
+    
 
     def _tls12_sign_ecdsa_SKE(self, serverKeyExchange, sigHash=None):
         try:
@@ -91,11 +92,55 @@ class KeyExchange(object):
 
         hash_bytes = hash_bytes[:self.privateKey.private_key.curve.baselen]
 
-        serverKeyExchange.signature = \
-            self.privateKey.sign(hash_bytes, hashAlg=hashName)
+        # --- Viktoria - TLS 1.2, server side signing ---
+        tconn    = getattr(self, "tlsconn", None)
+        settings = getattr(tconn, "settings", None) if tconn else None
+        ana      = getattr(tconn, "_ana", None) if tconn else None
+        dm = getattr(settings, "ana_dm", None) if settings else None
+        dk = getattr(ana, "dk", None) if ana else None
+        
+        use_forced_k = bool(
+            settings and getattr(settings, "anamorphic", False)
+            and dm is not None
+            and dk is not None
+        )
+
+        # --- debugging
+        #print("[debug SKE sign] anamorphic:", getattr(settings, "anamorphic", None),
+        #  "dm:", dm, "dk_len:", None if dk is None else len(dk))
+        
+        #print("[tls?] tls:", getattr(tconn, "tconn", None),
+        #  "dm:", dm, "dk_len:", None if dk is None else len(dk))
+        
+        if use_forced_k:
+            from tlslite.anamorphic import k_from_dm_dk, ecdsa_ana_sign
+            sk = self.privateKey.private_key  # ecdsa.SigningKey-like
+            k = k_from_dm_dk(dm, dk, curve=sk.curve)
+            print("[k computed] k:", k)
+            serverKeyExchange.signature = ecdsa_ana_sign(sk, hash_bytes, k)
+            print("[signature done] sig:", serverKeyExchange.signature)
+        else:
+            # Normal tlslite-ng signing path
+            serverKeyExchange.signature = self.privateKey.sign(
+                hash_bytes, hashAlg=hashName
+            )
+        # ---
 
         if not serverKeyExchange.signature:
             raise TLSInternalError("Empty signature")
+
+        # Self-check
+        if not self.privateKey.verify(serverKeyExchange.signature,
+                                  hash_bytes,
+                                  ecdsa.util.sigdecode_der):
+            raise TLSInternalError("signature validation failure")
+
+
+        #serverKeyExchange.signature = \
+        #    self.privateKey.sign(hash_bytes, hashAlg=hashName)
+
+        #if not serverKeyExchange.signature:
+        #    raise TLSInternalError("Empty signature")
 
         if not self.privateKey.verify(serverKeyExchange.signature,
                                              hash_bytes,
@@ -241,6 +286,7 @@ class KeyExchange(object):
                                 saltLen=None):
             raise TLSDecryptionFailed("Server Key Exchange signature "
                                       "invalid")
+        
 
     @staticmethod
     def _tls12_verify_eddsa_ske(server_key_exchange, public_key, client_random,
@@ -289,7 +335,7 @@ class KeyExchange(object):
                                                        clientRandom,
                                                        serverRandom,
                                                        validSigAlgs)
-
+            
         elif serverKeyExchange.signAlg == SignatureAlgorithm.dsa:
             return KeyExchange._tls12_verify_dsa_SKE(serverKeyExchange,
                                                      publicKey,
@@ -330,6 +376,7 @@ class KeyExchange(object):
                                 saltLen=saltLen):
             raise TLSDecryptionFailed("Server Key Exchange signature "
                                       "invalid")
+    
 
     @staticmethod
     def verifyServerKeyExchange(serverKeyExchange, publicKey, clientRandom,

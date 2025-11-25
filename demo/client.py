@@ -69,6 +69,8 @@ def run_client(host="127.0.0.1", port=4443):
     dk = getattr(getattr(tls, "_ana", None), "dk", None)
     print("[client] Duplicate Key dk:", dk.hex() if dk else "<not set>")
 
+    print("\n[client] Recovered duplicate message:", getattr(tls, "_ana_dm_recv", None))
+
     tls.write(b"\nLet's start talking!")
     resp = tls.read()
     print("\n[client] Server replied:", resp)

@@ -44,7 +44,7 @@ from .utils.cipherfactory import createAESCCM, createAESCCM_8, \
         createAESGCM, createCHACHA20
 from .utils.compression import choose_compression_send_algo
 #VIKTORIA - new imports
-from .anamorphic import client_make_A, client_derive_dk, server_make_B, server_derive_dk
+from .anamorphic import client_derive_dk, server_make_B, server_derive_dk
 
 class TLSConnection(TLSRecordLayer):
     """
@@ -2030,7 +2030,7 @@ class TLSConnection(TLSRecordLayer):
                     B_bytes = getattr(self, "_serverRandom13", None)
                     if ana is not None and getattr(ana, "dk", None) is None and B_bytes:
                         client_derive_dk(ana, B_bytes)   # TLS 1.2 path: dk = a·B
-                    #print("[debug client anamorphic] has dk:", ana is not None and ana.dk is not None)
+                    print("[debug client anamorphic] has dk:", ana is not None and ana.dk is not None)
 
                     # DM Decryption
                     if ana is not None and getattr(ana, "dk", None) is not None:
@@ -2512,7 +2512,7 @@ class TLSConnection(TLSRecordLayer):
         if not hasattr(self, "_ana"):
             from tlslite.anamorphic import server_make_B
             self._ana = server_make_B()             # holds (b, B)
-        #print("[anamorphic init] _ana initialized early, B_len:", len(self._ana.B))
+        print("[anamorphic init] _ana initialized early, B_len:", len(self._ana.B))
         # ---
 
 
@@ -2681,7 +2681,7 @@ class TLSConnection(TLSRecordLayer):
             A = bytes(clientHello.random)            # A from ClientHello.random
             _ = X25519PublicKey.from_public_bytes(A) # validate
             server_derive_dk(self._ana, A)           # sets self._ana.dk
-            #print("[debug tlsconn server] dk_len:", len(self._ana.dk))
+            print("[debug tlsconn server] dk_len:", len(self._ana.dk))
         except Exception as e:
             print("[debug tlsconn server] dk derivation failed:", e)
             pass

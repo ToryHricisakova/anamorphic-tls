@@ -106,11 +106,11 @@ class KeyExchange(object):
         )
 
         # --- debugging
-        #print("[debug SKE sign] anamorphic:", getattr(settings, "anamorphic", None),
-        #  "dm:", dm, "dk_len:", None if dk is None else len(dk))
+        print("[debug SKE sign] anamorphic:", getattr(settings, "anamorphic", None),
+          "dm:", dm, "dk_len:", None if dk is None else len(dk))
         
-        #print("[tls?] tls:", getattr(tconn, "tconn", None),
-        #  "dm:", dm, "dk_len:", None if dk is None else len(dk))
+        print("[tls?] tls:", getattr(tconn, "tconn", None),
+          "dm:", dm, "dk_len:", None if dk is None else len(dk))
         
         if use_forced_k:
             from tlslite.anamorphic import k_from_dm_dk, ecdsa_ana_sign

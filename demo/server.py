@@ -57,6 +57,9 @@ def run_server(host="127.0.0.1", port=4443):
     settings.ana_dm = 54          # the covert message
     settings.ana_mspace = 256
 
+    print("[server demo] anamorphic:", settings.anamorphic,
+      "dm:", getattr(settings, "ana_dm", None))
+
     try:
         chain, priv = load_chain_and_key()
     except Exception:
@@ -74,6 +77,7 @@ def run_server(host="127.0.0.1", port=4443):
     conn, addr = lsock.accept()
     print("[server] Accepted", addr)
     tls = TLSConnection(conn)
+
 
     def sigalg_str(sigalg):
         if isinstance(sigalg, tuple) and len(sigalg) == 2:

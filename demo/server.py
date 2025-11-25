@@ -51,7 +51,7 @@ def load_chain_and_key(cert_path="server.cert.pem", key_path="server.key.pem"):
 def run_server(host="127.0.0.1", port=4443):
     settings = HandshakeSettings()
     settings.minVersion = (3, 3) # 1.2
-    settings.maxVersion = (3, 4) # 1.3
+    settings.maxVersion = (3, 3) # 1.3
     settings.anamorphic = True
 
     try:

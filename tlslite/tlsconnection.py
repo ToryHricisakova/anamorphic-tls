@@ -4587,6 +4587,7 @@ class TLSConnection(TLSRecordLayer):
         #Send ServerHello, Certificate or Compressed Certificate
         #[, ServerKeyExchange] [, CertificateRequest], ServerHelloDone
         msgs = []
+        self.serverSigAlg = sigHashAlg
 
         # If we verify a client cert chain, return it
         clientCertChain = None

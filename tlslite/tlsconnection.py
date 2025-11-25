@@ -2030,7 +2030,7 @@ class TLSConnection(TLSRecordLayer):
                     B_bytes = getattr(self, "_serverRandom13", None)
                     if ana is not None and getattr(ana, "dk", None) is None and B_bytes:
                         client_derive_dk(ana, B_bytes)   # TLS 1.2 path: dk = a·B
-                    print("[debug client anamorphic] has dk:", ana is not None and ana.dk is not None)
+                    #print("[debug client anamorphic] has dk:", ana is not None and ana.dk is not None)
 
                     # DM Decryption
                     if ana is not None and getattr(ana, "dk", None) is not None:
@@ -2512,7 +2512,7 @@ class TLSConnection(TLSRecordLayer):
         if not hasattr(self, "_ana"):
             from tlslite.anamorphic import server_make_B
             self._ana = server_make_B()             # holds (b, B)
-        print("[anamorphic init] _ana initialized early, B_len:", len(self._ana.B))
+        #print("[anamorphic init] _ana initialized early, B_len:", len(self._ana.B))
         # ---
 
 

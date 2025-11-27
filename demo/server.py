@@ -14,7 +14,7 @@ except ImportError:
     except ImportError:
         from tlslite.utils.cryptomath import parsePEMKey
 
-from tlslite.utils.pem import dePem  # PEM → DER
+from tlslite.utils.pem import dePem
 
 def suite_name(code: int) -> str:
     for n, v in vars(CipherSuite).items():
@@ -29,20 +29,17 @@ def load_chain_and_key(cert_path="server.cert.pem", key_path="server.key.pem"):
     cert_pem_bytes = open(cert_path, "rb").read()  # bytes
     key_pem_bytes  = open(key_path,  "rb").read()  # bytes
 
-    # ---- CERT ----
-    # Use dePem with STR parameters on this build
+    # ---- CERTIFICATE ----
     cert_pem_str = cert_pem_bytes.decode("ascii")
-    cert_der = dePem(cert_pem_str, "CERTIFICATE")  # str, str
+    cert_der = dePem(cert_pem_str, "CERTIFICATE")
     x = X509()
-    x.parseBinary(cert_der)                        # parse DER directly
+    x.parseBinary(cert_der)                        
     chain = X509CertChain([x])
 
     # ---- KEY ----
-    # parsePEMKey generally wants a STR on this build
     try:
         priv = parsePEMKey(key_pem_bytes.decode("ascii"), private=True)
     except Exception:
-        # fallback: some variants accept bytes
         priv = parsePEMKey(key_pem_bytes, private=True)
 
     return chain, priv
@@ -51,8 +48,7 @@ def load_chain_and_key(cert_path="server.cert.pem", key_path="server.key.pem"):
 def run_server(host="127.0.0.1", port=4443):
     settings = HandshakeSettings()
     settings.minVersion = (3, 3) # 1.2
-    settings.maxVersion = (3, 3) # 1.3
-    settings.anamorphic = True
+    settings.maxVersion = (3, 4) # 1.3
 
     try:
         chain, priv = load_chain_and_key()
@@ -105,7 +101,7 @@ def run_server(host="127.0.0.1", port=4443):
             print("\n[server] Premaster not available")
     elif tls.version >= (3, 4):
         pms = getattr(tls, "_sharedSec13", None)
-        print("\n[server] ECDHE shared secret:", pms.hex() if pms else "<not captured>")
+        print("\n[server] ECDHE shared secret:", pms.hex() if pms else "<not available>")
 
 
     data = tls.read()

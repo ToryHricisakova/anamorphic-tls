@@ -1,4 +1,5 @@
-# demo/client.py
+#CLIENT
+ 
 from tlslite.constants import CipherSuite, HashAlgorithm, SignatureAlgorithm
 import socket
 from tlslite.handshakesettings import HandshakeSettings
@@ -34,8 +35,6 @@ def run_client(host="127.0.0.1", port=4443):
             return f"{SignatureAlgorithm.toStr(s)}_{HashAlgorithm.toStr(h)}"
         return str(sigalg)
 
-
-    # Cert-based client handshake (server-auth)
     ok = False
     try:
         tls.handshakeClientCert(settings=settings, serverName="localhost")

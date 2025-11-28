@@ -106,19 +106,19 @@ class KeyExchange(object):
         )
 
         # --- debugging
-        print("[debug SKE sign] anamorphic:", getattr(settings, "anamorphic", None),
-          "dm:", dm, "dk_len:", None if dk is None else len(dk))
+        #print("[debug SKE sign] anamorphic:", getattr(settings, "anamorphic", None),
+        #  "dm:", dm, "dk_len:", None if dk is None else len(dk))
         
-        print("[tls?] tls:", getattr(tconn, "tconn", None),
-          "dm:", dm, "dk_len:", None if dk is None else len(dk))
+        #print("[tls?] tls:", getattr(tconn, "tconn", None),
+        #  "dm:", dm, "dk_len:", None if dk is None else len(dk))
         
         if use_forced_k:
             from tlslite.anamorphic import k_from_dm_dk, ecdsa_ana_sign
             sk = self.privateKey.private_key  # ecdsa.SigningKey-like
             k = k_from_dm_dk(dm, dk, curve=sk.curve)
-            print("[k computed] k:", k)
+            #print("[k computed] k:", k)
             serverKeyExchange.signature = ecdsa_ana_sign(sk, hash_bytes, k)
-            print("[signature done] sig:", serverKeyExchange.signature)
+            #print("[signature done] sig:", serverKeyExchange.signature)
         else:
             # Normal tlslite-ng signing path
             serverKeyExchange.signature = self.privateKey.sign(

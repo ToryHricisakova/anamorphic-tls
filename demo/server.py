@@ -30,19 +30,16 @@ def load_chain_and_key(cert_path="server.cert.pem", key_path="server.key.pem"):
     key_pem_bytes  = open(key_path,  "rb").read()  # bytes
 
     # ---- CERT ----
-    # Use dePem with STR parameters on this build
     cert_pem_str = cert_pem_bytes.decode("ascii")
-    cert_der = dePem(cert_pem_str, "CERTIFICATE")  # str, str
+    cert_der = dePem(cert_pem_str, "CERTIFICATE")  
     x = X509()
-    x.parseBinary(cert_der)                        # parse DER directly
+    x.parseBinary(cert_der)                        
     chain = X509CertChain([x])
 
     # ---- KEY ----
-    # parsePEMKey generally wants a STR on this build
     try:
         priv = parsePEMKey(key_pem_bytes.decode("ascii"), private=True)
     except Exception:
-        # fallback: some variants accept bytes
         priv = parsePEMKey(key_pem_bytes, private=True)
 
     return chain, priv
@@ -54,7 +51,7 @@ def run_server(host="127.0.0.1", port=4443):
     settings.maxVersion = (3, 3) # 1.3
     settings.anamorphic = True
 
-    settings.ana_dm = 54          # the covert message
+    settings.ana_dm = 54          
     settings.ana_mspace = 256
 
     print("[server demo] anamorphic:", settings.anamorphic,

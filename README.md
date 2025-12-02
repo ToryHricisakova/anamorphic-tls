@@ -36,6 +36,11 @@ source venv/bin/activate  # On macOS/Linux
 # Install dependencies
 pip install -e .
 pip install cryptography
+
+###You will also need to generate server certificate and key (from the venv)
+openssl ecparam -name prime256v1 -genkey -noout -out server.key.pem
+openssl req -new -x509 -key server.key.pem -out server.cert.pem -days 365 \
+  -subj "/C=US/ST=Example/L=Example/O=Thesis Demo/CN=localhost"
 ```
 # How to run
 ```bash

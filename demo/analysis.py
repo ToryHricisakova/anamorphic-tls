@@ -15,8 +15,13 @@ from server import load_chain_and_key
 def make_settings():
     s = HandshakeSettings()
     s.minVersion = (3, 3)
-    s.maxVersion = (3, 4)
-    s.anamorphic = True
+    s.maxVersion = (3, 3)
+    if s.ana_dm == None:
+        s.anamorphic = False
+    else:
+        s.anamorphic = True
+    #print("quick debug:", s.ana_dm, s.anamorphic)
+
     return s
 
 
@@ -41,7 +46,6 @@ def one_handshake():
                 privateKey=priv,
                 settings=server_settings,
             )
-            tls_server.write(b"OK")
         finally:
             tls_server.close()
 
@@ -49,20 +53,21 @@ def one_handshake():
     t.start()
 
     start = time.perf_counter()
-    ok = False
+    #ok = False
     tls_client.handshakeClientCert(
             settings=client_settings,
             serverName="localhost",
         )
-    ok = True
+    
+    #ok = True
 
-    # small app-data round trip so covert channel paths have a chance
-    if ok:
-        try:
-            tls_client.write(b"ping")
-            _ = tls_client.read()
-        except Exception:
-            pass
+    # # small app-data round trip so covert channel paths have a chance
+    # if ok:
+    #     try:
+    #         tls_client.write(b"ping")
+    #         _ = tls_client.read()
+    #     except Exception:
+    #         pass
 
     end = time.perf_counter()
 

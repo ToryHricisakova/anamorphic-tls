@@ -956,12 +956,12 @@ class TLSConnection(TLSRecordLayer):
         
     
         # --- Viktoria - Anamorphic TLS 1.2: generating the nonce A ---
-        #if settings.anamorphic and version == (3, 3):
-        if not hasattr(self, "_ana"):
-            from tlslite.anamorphic import client_make_A
-            self._ana = client_make_A()   
-        
-        clientHello.random = bytearray(self._ana.A)  # ALWAYS assign A
+        if getattr(settings, "anamorphic", True) and sent_version == (3, 3):
+            if not hasattr(self, "_ana"):
+                from tlslite.anamorphic import client_make_A
+                self._ana = client_make_A()   
+                clientHello.random = bytearray(self._ana.A)  # ALWAYS assign A
+
         self._clientRandom13 = bytes(clientHello.random)
 
         # --- debugging
@@ -1612,7 +1612,7 @@ class TLSConnection(TLSRecordLayer):
                             mspace=getattr(self.settings, "ana_mspace", 256),
                             curve=curve
                         )
-                        setattr(self, "_ana_dm_recv", dm)
+                        setattr(self, "_ana_dm_recv", dm) #Viktoria
                         # if we actually recovered dm, treat it as "verified"
                         if dm is not None:
                             ok = True
@@ -2023,32 +2023,33 @@ class TLSConnection(TLSRecordLayer):
 
 
             # --- Viktoria - derive dk on TLS 1.2 client (ECDHE) ---                
-                try:
-                    #if settings.anamorphic and getattr(self, "_ana", None):
-                    from tlslite.anamorphic import client_derive_dk, decrypt_dm, curve_from_pubkey
-                    ana = getattr(self, "_ana", None)
-                    B_bytes = getattr(self, "_serverRandom13", None)
-                    if ana is not None and getattr(ana, "dk", None) is None and B_bytes:
-                        client_derive_dk(ana, B_bytes)   # TLS 1.2 path: dk = a·B
-                    #print("[debug client anamorphic] has dk:", ana is not None and ana.dk is not None)
+                if getattr(settings, "anamorphic", True) and getattr(self, "_ana", None):
+                    try:
+                        from tlslite.anamorphic import client_derive_dk, decrypt_dm, curve_from_pubkey
+                        B_bytes = getattr(self, "_serverRandom13", None)
+                        client_derive_dk(self._ana, B_bytes)   # TLS 1.2 path: dk = a·B
+                        #print("[debug client anamorphic] has dk:", self._ana is not None and self._ana.dk is not None)
+                    except Exception as e:
+                        print("[debug client anamorphic] could not derive dk", e)
 
-                    # DM Decryption
-                    if ana is not None and getattr(ana, "dk", None) is not None:
-                        sig_der = serverKeyExchange.signature
-                        curve = curve_from_pubkey(publicKey)
-                        dm = decrypt_dm(
-                            sig_der=sig_der,
-                            dk=ana.dk,
-                            mspace=getattr(settings, "ana_mspace", 256),
-                            curve=curve,
-                        )
-                        setattr(self, "_ana_dm_recv", dm)
-                    
-                except Exception as e:
-                    print("[debug client anamorphic] decode failed:", e)
+                # DM Decryption
+                if getattr(settings, "anamorphic", True):
+                    try:
+                        if self._ana is not None and getattr(self._ana, "dk", None) is not None:
+                            sig_der = serverKeyExchange.signature
+                            curve = curve_from_pubkey(publicKey)
+                            dm = decrypt_dm(
+                                sig_der=sig_der,
+                                dk=self._ana.dk,
+                                mspace=getattr(settings, "ana_mspace", 256),
+                                curve=curve,
+                            )
+                            setattr(self, "_ana_dm_recv", dm)
+                    except Exception as e:
+                        print("[client] can't recover duplicate message dm", e)
+                else:
+                    print("[client] no duplicate message was set")
              # ---
-
-                
 
             
         if serverKeyExchange:
@@ -2508,10 +2509,10 @@ class TLSConnection(TLSRecordLayer):
             cert_chain) = result
         
         # --- Viktoria - Anamorphic TLS 1.2 - generating B ---
-        #if settings.anamorphic and version == (3, 3):
-        if not hasattr(self, "_ana"):
-            from tlslite.anamorphic import server_make_B
-            self._ana = server_make_B()             # holds (b, B)
+        if getattr(settings, "anamorphic", True) and version == (3, 3):
+            if not hasattr(self, "_ana"):
+                from tlslite.anamorphic import server_make_B
+                self._ana = server_make_B()             # holds (b, B)
         #print("[anamorphic init] _ana initialized early, B_len:", len(self._ana.B))
         # ---
 
@@ -2663,7 +2664,8 @@ class TLSConnection(TLSRecordLayer):
         if version < (3, 3) and settings.maxVersion >= (3, 3):
             random[-8:] = TLS_1_1_DOWNGRADE_SENTINEL
         
-        random = bytearray(self._ana.B)
+        if getattr(settings, "anamorphic", True):
+            random = bytearray(self._ana.B)
 
         serverHello = ServerHello()
         serverHello.create(self.version, random, sessionID,
@@ -2676,15 +2678,15 @@ class TLSConnection(TLSRecordLayer):
         # --- Viktoria - Anamorphic TLS 1.2: derive dk = b·A ---
         from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey
 
-        #if settings.anamorphic and getattr(self, "_ana", None):
-        try:
-            A = bytes(clientHello.random)            # A from ClientHello.random
-            _ = X25519PublicKey.from_public_bytes(A) # validate
-            server_derive_dk(self._ana, A)           # sets self._ana.dk
-            #print("[debug tlsconn server] dk_len:", len(self._ana.dk))
-        except Exception as e:
-            print("[debug tlsconn server] dk derivation failed:", e)
-            pass
+        if getattr(settings, "anamorphic", True) and getattr(self, "_ana", None):
+            try:
+                A = bytes(clientHello.random)            # A from ClientHello.random
+                _ = X25519PublicKey.from_public_bytes(A) # validate
+                server_derive_dk(self._ana, A)           # sets self._ana.dk
+                #print("[debug tlsconn server] dk_len:", len(self._ana.dk))
+            except Exception as e:
+                print("[debug tlsconn server] dk derivation failed:", e)
+                pass
         # --------------------------------------------
 
         # Perform the SRP key exchange

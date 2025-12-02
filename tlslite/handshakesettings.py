@@ -492,7 +492,7 @@ class HandshakeSettings(object):
 
         # Viktoria - declaring helper atributes
         self.anamorphic = False
-        self.ana_dm = None
+        self.ana_dm = 54
         self.ana_mspace = 256
 
     @staticmethod
@@ -788,6 +788,10 @@ class HandshakeSettings(object):
         other.minVersion = self.minVersion
         other.maxVersion = self.maxVersion
         other.versions = self.versions
+        # Viktoria - perserve settings
+        other.anamorphic = self.anamorphic
+        other.ana_dm = self.ana_dm
+        other.ana_mspace = self.ana_mspace
 
     def _copy_extension_settings(self, other):
         """Copy values of settings related to extensions."""

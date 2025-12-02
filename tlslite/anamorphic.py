@@ -94,7 +94,7 @@ def k_from_dm_dk(dm: int, dk: bytes, curve=NIST256p) -> int:
     Derive nonce scalar k from dm and dk using only x-coordinate of (dm * G).
     Returns scalar in [1..n-1].
     """
-    dk = to_bytes_strict(dk)
+    #dk = to_bytes_strict(dk)
     G: Point = curve.generator
     n = curve.order
 
@@ -120,10 +120,9 @@ def k_from_dm_dk(dm: int, dk: bytes, curve=NIST256p) -> int:
 
 
 def inv_mod(a: int, n: int) -> int:
-    """Modular inverse (Python 3.8+ has pow(a, -1, n) but we use pow for clarity)."""
     return pow(a, -1, n)
 
-def ecdsa_ana_sign(privkey, msg_hash: bytes, k: int, curve=NIST256p) -> bytes:
+def ecdsa_ana_sign(privkey, msg_hash: bytes, k: int) -> bytes:
     """
     Notes:
     - This implements r = x(kG) mod n, s = k^-1 (H(m) + r*sk) mod n.
@@ -132,20 +131,16 @@ def ecdsa_ana_sign(privkey, msg_hash: bytes, k: int, curve=NIST256p) -> bytes:
     # Accept SigningKey or raw scalar
     if isinstance(privkey, SigningKey):
         sk_obj = privkey
-        d = sk_obj.privkey.secret_multiplier
-    elif isinstance(privkey, int):
-        d = int(privkey)
-        sk_obj = None
     else:
-        # try to accept PEM bytes
         try:
             sk_obj = SigningKey.from_pem(privkey)
-            d = sk_obj.privkey.secret_multiplier
         except Exception:
-            raise TypeError("privkey must be SigningKey, private scalar int, or PEM bytes")
+            raise TypeError("Unsupported ECDSA private key format")
 
+    curve = sk_obj.curve      # ← automatic
     n = curve.order
     G = curve.generator
+    d = sk_obj.privkey.secret_multiplier
 
     # Ensure k is in range
     k = int(k) % n
@@ -173,13 +168,13 @@ def ecdsa_ana_sign(privkey, msg_hash: bytes, k: int, curve=NIST256p) -> bytes:
     return sig_der
 
 def ecdsa_ana_sign_message(privkey, message: bytes, k: int,
-                           hash_name: str, curve=NIST256p) -> bytes:
+                           hash_name: str) -> bytes:
     """
     TLS 1.3 helper: sign the *message* using hash_name, but with forced nonce k.
     Internally does H(message) and then standard ECDSA formula with k.
     """
     h = getattr(hashlib, hash_name)(message).digest()
-    return ecdsa_ana_sign(privkey, h, k, curve)
+    return ecdsa_ana_sign(privkey, h, k)
 
 
 def curve_from_pubkey(tlslite_pubkey):
@@ -212,6 +207,7 @@ def decrypt_dm(sig_der: bytes, dk: bytes, mspace: int, curve) -> int | None:
 
     # parse DER -> (r,s)  (we only need r)
     r, s = sigdecode_der(sig_der, n)
+    r = int(r) % n
 
     for i in range(mspace):
         k_i = k_from_dm_dk(i, dk, curve)

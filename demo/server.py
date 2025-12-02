@@ -48,14 +48,16 @@ def load_chain_and_key(cert_path="server.cert.pem", key_path="server.key.pem"):
 def run_server(host="127.0.0.1", port=4443):
     settings = HandshakeSettings()
     settings.minVersion = (3, 3) # 1.2
-    settings.maxVersion = (3, 3) # 1.3
-    settings.anamorphic = True
-
-    settings.ana_dm = 54          
+    settings.maxVersion = (3, 4) # 1.3
+    #settings.ana_dm = None
     settings.ana_mspace = 256
 
-    print("[server demo] anamorphic:", settings.anamorphic,
-      "dm:", getattr(settings, "ana_dm", None))
+    if settings.ana_dm == None:
+        settings.anamorphic = False
+    else:
+        settings.anamorphic = True
+
+    #print("[server demo] dm:", getattr(settings, "ana_dm", None))
 
     try:
         chain, priv = load_chain_and_key()

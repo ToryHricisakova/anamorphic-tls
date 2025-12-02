@@ -1,7 +1,16 @@
-# TLSLite-NG Baseline Demo
+# TLSLite-NG Anamorphic Demo
 
-This repository contains a baseline version of the [tlslite-ng](https://github.com/tomato42/tlslite-ng) Python TLS implementation.
+This repository contains a both a standard baseline version and the anamorphic version of the [tlslite-ng](https://github.com/tomato42/tlslite-ng) Python TLS implementation.
 It demonstrates a standard TLS 1.2 / 1.3 handshake using `demo/server.py` and `demo/client.py`.
+
+## README for `baseline-tls`
+
+# TLSLite-NG Anamorphic Demo
+
+This repository contains a modified version of [tlslite-ng](https://github.com/tomato42/tlslite-ng) 
+that implements **Anamorphic Key Exchange and covert message embedding** functionality for TLS 1.2 and 1.3 handshakes.
+
+Switch to anamorphic branch to run the anamorphic channel.
 
 ---
 
@@ -9,7 +18,7 @@ It demonstrates a standard TLS 1.2 / 1.3 handshake using `demo/server.py` and `d
 
 - Python 3.13 (or >= 3.10)
 - `pip` and `venv`
-- No external network dependencies
+- `cryptography` library for X25519 support
 
 ---
 
@@ -18,7 +27,6 @@ It demonstrates a standard TLS 1.2 / 1.3 handshake using `demo/server.py` and `d
 ```bash
 # Clone the repository
 git clone https://github.com/ToryHricisakova/baseline-tls.git
-cd baseline-tls
 
 # Create and activate a virtual environment
 python3 -m venv venv
@@ -27,6 +35,16 @@ source venv/bin/activate  # On macOS/Linux
 
 # Install dependencies
 pip install -e .
+pip install cryptography
+```
+# How to run
+```bash
+cd demo
+python server.py
+
+# And in a separate terminal run (venv needs to be activated)
+cd demo
+python client.py
 ```
 
 

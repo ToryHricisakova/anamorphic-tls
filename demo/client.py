@@ -7,6 +7,7 @@ try:
     from tlslite.api import TLSConnection
 except ImportError:
     from tlslite.tlsconnection import TLSConnection
+from server import make_settings
 
 
 def suite_name(code: int) -> str:
@@ -20,15 +21,7 @@ def hex_or_empty(b):
 
 
 def run_client(host="127.0.0.1", port=4443):
-    settings = HandshakeSettings()
-    settings.minVersion = (3, 3) # 1.2
-    settings.maxVersion = (3, 3) # 1.3
-    settings.ana_mspace = 256
-
-    if settings.ana_dm == None:
-        settings.anamorphic = False
-    else:
-        settings.anamorphic = True
+    settings = make_settings()
 
     s = socket.socket()
     s.connect((host, port))

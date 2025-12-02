@@ -9,20 +9,7 @@ try:
 except ImportError:
     from tlslite.api import TLSConnection
 
-from server import load_chain_and_key
-
-
-def make_settings():
-    s = HandshakeSettings()
-    s.minVersion = (3, 3)
-    s.maxVersion = (3, 3)
-    if s.ana_dm == None:
-        s.anamorphic = False
-    else:
-        s.anamorphic = True
-    #print("quick debug:", s.ana_dm, s.anamorphic)
-
-    return s
+from server import load_chain_and_key, make_settings
 
 
 def one_handshake():
@@ -36,6 +23,7 @@ def one_handshake():
 
     server_settings = make_settings()
     client_settings = make_settings()
+    
 
     chain, priv = load_chain_and_key()
 

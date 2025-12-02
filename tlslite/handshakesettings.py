@@ -490,7 +490,7 @@ class HandshakeSettings(object):
         self.keyExchangeNames = list(KEY_EXCHANGE_NAMES)
         self.cipherImplementations = list(CIPHER_IMPLEMENTATIONS)
 
-        # Viktoria - declaring helper atributes
+        # Viktoria
         self.anamorphic = False
         self.ana_dm = 54
         self.ana_mspace = 256

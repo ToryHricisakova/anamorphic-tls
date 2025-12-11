@@ -1,8 +1,7 @@
-# SERVER
-
 import socket, traceback
 from tlslite.handshakesettings import HandshakeSettings
 from tlslite.constants import CipherSuite, HashAlgorithm, SignatureAlgorithm
+from tlslite.utils.pem import dePem
 
 try:
     from tlslite.api import TLSConnection, X509, X509CertChain, parsePEMKey
@@ -14,7 +13,6 @@ except ImportError:
     except ImportError:
         from tlslite.utils.cryptomath import parsePEMKey
 
-from tlslite.utils.pem import dePem  # PEM → DER
 
 def suite_name(code: int) -> str:
     for n, v in vars(CipherSuite).items():
@@ -22,12 +20,14 @@ def suite_name(code: int) -> str:
             return n
     return str(code)
 
+
 def hex_or_empty(b):
     return "" if b is None else (b.hex() if isinstance(b, (bytes, bytearray)) else bytes(b).hex())
 
+
 def load_chain_and_key(cert_path="server.cert.pem", key_path="server.key.pem"):
-    cert_pem_bytes = open(cert_path, "rb").read()  # bytes
-    key_pem_bytes  = open(key_path,  "rb").read()  # bytes
+    cert_pem_bytes = open(cert_path, "rb").read() 
+    key_pem_bytes  = open(key_path,  "rb").read()
 
     # ---- CERT ----
     cert_pem_str = cert_pem_bytes.decode("ascii")
@@ -44,6 +44,16 @@ def load_chain_and_key(cert_path="server.cert.pem", key_path="server.key.pem"):
 
     return chain, priv
 
+
+def sigalg_str(sigalg):
+        if isinstance(sigalg, tuple) and len(sigalg) == 2:
+            h, s = sigalg
+            return f"{SignatureAlgorithm.toStr(s)}_{HashAlgorithm.toStr(h)}"
+        return str(sigalg)
+
+
+# ----------  SETTINGS SETUP ------------- 
+
 def make_settings():
     settings = HandshakeSettings()
     settings.minVersion = (3, 3)  # TLS 1.2
@@ -54,10 +64,10 @@ def make_settings():
         settings.anamorphic = False
     else:
         settings.anamorphic = True
-
-    #print("[server demo] dm:", getattr(settings, "ana_dm", None), "anamorphic:", settings.anamorphic)
-
     return settings
+
+
+# ----------  RUN SERVER ------------- 
 
 def run_server(host="127.0.0.1", port=4443):
     settings = make_settings()
@@ -78,15 +88,7 @@ def run_server(host="127.0.0.1", port=4443):
 
     conn, addr = lsock.accept()
     print("[server] Accepted", addr)
-    tls = TLSConnection(conn)
-
-
-    def sigalg_str(sigalg):
-        if isinstance(sigalg, tuple) and len(sigalg) == 2:
-            h, s = sigalg
-            return f"{SignatureAlgorithm.toStr(s)}_{HashAlgorithm.toStr(h)}"
-        return str(sigalg)
-    
+    tls = TLSConnection(conn)    
 
     try:
         tls.handshakeServer(certChain=chain, privateKey=priv, settings=settings)
@@ -95,6 +97,9 @@ def run_server(host="127.0.0.1", port=4443):
         traceback.print_exc()
         conn.close(); lsock.close(); return
     print("[server] Handshake complete")
+
+
+    # ----------  PRINT ------------- 
 
     print("\n[server] TLS version:", tls.version)
 

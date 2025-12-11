@@ -3,7 +3,6 @@ import threading
 import time
 import statistics
 
-from tlslite.handshakesettings import HandshakeSettings
 try:
     from tlslite.tlsconnection import TLSConnection
 except ImportError:
@@ -13,9 +12,6 @@ from server import load_chain_and_key, make_settings
 
 
 def one_handshake():
-    """
-    Exactly one TLS handshake (client + server). Return elapsed time in seconds.
-    """
     s_server, s_client = socket.socketpair()
 
     tls_server = TLSConnection(s_server)
@@ -23,7 +19,6 @@ def one_handshake():
 
     server_settings = make_settings()
     client_settings = make_settings()
-    
 
     chain, priv = load_chain_and_key()
 
@@ -41,21 +36,10 @@ def one_handshake():
     t.start()
 
     start = time.perf_counter()
-    #ok = False
     tls_client.handshakeClientCert(
             settings=client_settings,
             serverName="localhost",
         )
-    
-    #ok = True
-
-    # # small app-data round trip so covert channel paths have a chance
-    # if ok:
-    #     try:
-    #         tls_client.write(b"ping")
-    #         _ = tls_client.read()
-    #     except Exception:
-    #         pass
 
     end = time.perf_counter()
 
@@ -68,7 +52,7 @@ def one_handshake():
 def main(runs):
     times = []
 
-    # Warm-up
+    # --- Warm-up ---
     for _ in range(5):
         one_handshake()
 
@@ -79,7 +63,9 @@ def main(runs):
     avg = statistics.mean(times)
     stdev = statistics.pstdev(times)
 
-    print(f"\n=== TLS with anamorphic channel ===")
+    if make_settings().anamorphic == True:
+        print(f"\n=== Anamorphic TLS Handshake ===")
+    else: print(f"\n=== Standard TLS Handshake ===")
     print(f"Runs: {runs}")
     print(f"Mean:  {avg*1000:.2f} ms")
     print(f"σ:     {stdev*1000:.2f} ms")

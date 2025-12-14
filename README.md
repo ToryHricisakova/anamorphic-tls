@@ -40,8 +40,12 @@ openssl ecparam -name prime256v1 -genkey -noout -out server.key.pem
 openssl req -new -x509 -key server.key.pem -out server.cert.pem -days 365 \
   -subj "/C=US/ST=Example/L=Example/O=Thesis Demo/CN=localhost"
 ```
-# How to run
+# How to run the anamorphic channel
+
 ```bash
+#Switch to anamorphic branch
+git checkout anamorphic
+
 cd demo
 python server.py
 

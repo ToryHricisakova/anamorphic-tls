@@ -43,7 +43,7 @@ openssl req -new -x509 -key server.key.pem -out server.cert.pem -days 365 \
 # How to run the anamorphic channel
 
 ```bash
-#Switch to anamorphic branch
+#Switch to anamorphic branch (after which you might need to reinstall dependencies/requirements)
 git checkout anamorphic
 
 cd demo

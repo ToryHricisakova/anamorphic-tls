@@ -108,10 +108,10 @@ class KeyExchange(object):
         #  "dm:", dm, "dk_len:", None if dk is None else len(dk))
         
         if settings.anamorphic:
-            from tlslite.anamorphic import k_from_dm_dk, ecdsa_ana_sign
+            from tlslite.anamorphic import fRandom, ecdsa_ana_sign
             from ecdsa import NIST256p
             sk = self.privateKey.private_key
-            k = k_from_dm_dk(dm, dk, curve=NIST256p)
+            k = fRandom(dm, dk, curve=NIST256p)
             serverKeyExchange.signature = ecdsa_ana_sign(sk, hash_bytes, k)
         else: # Normal tlslite-ng signing path
             serverKeyExchange.signature = self.privateKey.sign(

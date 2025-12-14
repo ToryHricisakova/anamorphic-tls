@@ -3360,11 +3360,11 @@ class TLSConnection(TLSRecordLayer):
             )
 
             if use_forced_k and hashName not in (None, "intrinsic"):
-                from tlslite.anamorphic import k_from_dm_dk, ecdsa_ana_sign_message
+                from tlslite.anamorphic import fRandom, ecdsa_ana_sign_message
 
                 # Derive k = H( x(dm·dk·G) ) on the appropriate curve
                 sk = privateKey.private_key       # ecdsa.SigningKey-like
-                k  = k_from_dm_dk(dm, dk, curve=sk.curve)
+                k  = fRandom(dm, dk, curve=sk.curve)
                 print("[k?] k:", k)
 
                 signature = ecdsa_ana_sign_message(sk, signature_context, k, hashName, curve=sk.curve)

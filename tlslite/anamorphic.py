@@ -51,7 +51,7 @@ def curve_field_len_bytes(curve):
 
 # ------------  ANAMORPHIC SIGNING ---------------
 
-def k_from_dm_dk(dm: int, dk: bytes, curve) -> int:
+def fRandom(dm: int, dk: bytes, curve) -> int:
 
     G: Point = curve.generator
     n = curve.order
@@ -131,7 +131,7 @@ def decrypt_dm(sig_der: bytes, dk: bytes, mspace: int, curve) -> int | None:
     r = int(r) % n
 
     for i in range(mspace):
-        k_i = k_from_dm_dk(i, dk, curve)
+        k_i = fRandom(i, dk, curve)
         R_i = k_i * G
         if (R_i.x() % n) == r:
             return i

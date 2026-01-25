@@ -70,21 +70,25 @@ def run_client(host="127.0.0.1", port=4443):
     sigalg = getattr(tls, "serverSigAlg", None)
     print("[client] Server Signing Algorithm:", sigalg_str(sigalg))
 
-    print("\n[server] ClientHello.random:", hex_or_empty(getattr(tls, "_clientRandom13", None)))
-    print("[server] ServerHello.random:", hex_or_empty(getattr(tls, "_serverRandom13", None)))
+    print("\n[client] ClientHello.random:", hex_or_empty(getattr(tls, "_clientRandom13", None)))
+    print("[client] ServerHello.random:", hex_or_empty(getattr(tls, "_serverRandom13", None)))
+
+    print("\n[client] Double Key dk:", dk.hex() if dk else "<not set>")
 
     # ------- PREMASTER SECRET -------
     if tls.version == (3, 3):
         pms = getattr(tls, "_premasterSecret_demo", None)
         if pms:
-            print("\n[server] Premaster (shared secret):", pms.hex())
+            print("\n[client] Premaster (shared secret):", pms.hex())
         else:
-            print("\n[server] Premaster not available")
+            print("\n[client] Premaster not available")
     elif tls.version >= (3, 4):
         pms = getattr(tls, "_sharedSec13", None)
         print("\n[client] ECDHE shared secret:", pms.hex() if pms else "<not captured>")
 
-    print("[client] Duplicate Key dk:", dk.hex() if dk else "<not set>")
+    sig = getattr(tls, "_ana_sig_der", None)
+    print("\n[client] Signature (containg dm):", sig.hex() if isinstance(sig, (bytes, bytearray)) else "<not set>")
+
 
     print("\n[client] Recovered dm:", dm)
 

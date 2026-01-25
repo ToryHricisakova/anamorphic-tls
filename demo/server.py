@@ -110,6 +110,9 @@ def run_server(host="127.0.0.1", port=4443):
     print("\n[server] ClientHello.random:", hex_or_empty(getattr(tls, "_clientRandom13", None)))
     print("[server] ServerHello.random:", hex_or_empty(getattr(tls, "_serverRandom13", None)))
 
+    dk = getattr(getattr(tls, "_ana", None), "dk", None)
+    print("\n[server] Double Key dk:", dk.hex() if dk else "<not set>")
+
     # PREMASTER SECRET
     if tls.version == (3, 3):
         pms = getattr(tls, "_premasterSecret_demo", None)
@@ -121,10 +124,10 @@ def run_server(host="127.0.0.1", port=4443):
         pms = getattr(tls, "_sharedSec13", None)
         print("\n[server] ECDHE shared secret:", pms.hex() if pms else "<not captured>")
 
-
-    dk = getattr(getattr(tls, "_ana", None), "dk", None)
-    print("[server] Duplicate Key dk:", dk.hex() if dk else "<not set>")
-
+    
+    sig = getattr(tls, "_ana_sig_der", None)
+    print("\n[server] Signature (containing dm):", sig.hex() if sig else "<not set>")
+    
     data = tls.read()
     print("\n[server] App data from client:", data)
     tls.write(b"OK")
